@@ -1,0 +1,31 @@
+{
+  "name": "soundcloud-migrate-cli",
+  "version": "0.1.0",
+  "description": "CLI tool to migrate actions between SoundCloud accounts using the official API",
+  "type": "module",
+  "bin": {
+    "sc-migrate": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.5",
+    "commander": "^12.1.0",
+    "dotenv": "^16.4.5",
+    "open": "^9.2.0",
+    "pino": "^9.3.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^20.14.12",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4"
+  }
+}
