@@ -22,7 +22,7 @@ const base64UrlEncode = (buffer: Buffer) =>
     .replace(/=+$/g, "");
 
 const generatePkce = () => {
-  const verifier = base64UrlEncode(crypto.randomBytes(32));
+  const verifier = base64UrlEncode(crypto.randomBytes(64));
   const challenge = base64UrlEncode(crypto.createHash("sha256").update(verifier).digest());
   return { verifier, challenge };
 };
@@ -57,7 +57,10 @@ const waitForOAuthCode = (port: number, expectedState: string) =>
       resolve({ code, state });
     });
 
-    server.on("error", (error) => reject(error));
+    server.on("error", (error) => {
+      server.close();
+      reject(error);
+    });
 
     server.listen(port, OAUTH_CONFIG.redirectHost, () => {
       logger.info({ port }, "OAuth callback server listening");
@@ -68,7 +71,6 @@ const exchangeCodeForToken = async (code: string, verifier: string, redirectUri:
   const params = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: config.SOUNDCLOUD_CLIENT_ID,
-    client_secret: config.SOUNDCLOUD_CLIENT_SECRET,
     redirect_uri: redirectUri,
     code,
     code_verifier: verifier
@@ -133,6 +135,7 @@ export const connectAccount = async (db: Database.Database, name: "source" | "ta
   authorizeUrl.searchParams.set("response_type", "code");
   authorizeUrl.searchParams.set("code_challenge", challenge);
   authorizeUrl.searchParams.set("code_challenge_method", "S256");
+  authorizeUrl.searchParams.set("scope", "non-expiring");
   authorizeUrl.searchParams.set("state", state);
 
   logger.info({ url: authorizeUrl.toString() }, "Opening SoundCloud authorization URL");
