@@ -25,6 +25,7 @@ program
     }
     const db = initializeDb(config.DB_PATH);
     await connectAccount(db, account);
+    db.close();
   });
 
 program
@@ -50,9 +51,11 @@ program
 
     if (job === "followings") {
       await runFollowingsMigration(db, { limit, sleepMs });
+      db.close();
       return;
     }
 
+    db.close();
     logger.error({ job }, "Unknown job");
     process.exitCode = 1;
   });
@@ -85,9 +88,10 @@ program
       expires_at: 0
     });
     logger.info({ name: account }, "Seeded OAuth tokens for account");
+    db.close();
   });
 
 program.parseAsync().catch((error) => {
   logger.error({ err: error }, "CLI failed");
-  process.exitCode = 1;
+  process.exit(1);
 });

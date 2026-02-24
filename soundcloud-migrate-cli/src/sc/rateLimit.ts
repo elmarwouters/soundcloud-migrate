@@ -8,16 +8,16 @@ export const backoffDelay = (attempt: number, baseMs = 500, capMs = 10_000) => {
 
 export const withRetries = async <T>(
   fn: () => Promise<T>,
-  options: { retries: number; baseMs?: number; capMs?: number }
+  options: { retries: number; baseMs?: number; capMs?: number; isRetryable?: (error: unknown) => boolean }
 ): Promise<T> => {
-  const { retries, baseMs, capMs } = options;
+  const { retries, baseMs, capMs, isRetryable = () => true } = options;
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      if (attempt >= retries) {
+      if (attempt >= retries || !isRetryable(error)) {
         break;
       }
       const delay = backoffDelay(attempt, baseMs, capMs);
