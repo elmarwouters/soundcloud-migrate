@@ -2,7 +2,7 @@
 import "dotenv/config";
 import { Command } from "commander";
 import { config } from "./config.js";
-import { initializeDb } from "./db/db.js";
+import { initializeDb, upsertAccount } from "./db/db.js";
 import { connectAccount } from "./sc/oauth.js";
 import { runFollowingsMigration } from "./jobs/followings.js";
 import { logger } from "./logger.js";
@@ -55,6 +55,36 @@ program
 
     logger.error({ job }, "Unknown job");
     process.exitCode = 1;
+  });
+
+program
+  .command("seed")
+  .argument("<account>", "Account name: source or target")
+  .description("Seed OAuth tokens from environment variables (for CI/CD)")
+  .action(async (account: string) => {
+    if (account !== "source" && account !== "target") {
+      logger.error("Account must be either 'source' or 'target'");
+      process.exitCode = 1;
+      return;
+    }
+    const prefix = `SC_${account.toUpperCase()}`;
+    const accessToken = process.env[`${prefix}_ACCESS_TOKEN`];
+    const refreshToken = process.env[`${prefix}_REFRESH_TOKEN`];
+    if (!accessToken || !refreshToken) {
+      logger.error(
+        `${prefix}_ACCESS_TOKEN and ${prefix}_REFRESH_TOKEN environment variables must be set`
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const db = initializeDb(config.DB_PATH);
+    upsertAccount(db, {
+      name: account,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      expires_at: 0
+    });
+    logger.info({ name: account }, "Seeded OAuth tokens for account");
   });
 
 program.parseAsync().catch((error) => {
