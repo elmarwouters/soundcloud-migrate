@@ -7,6 +7,8 @@ import { withRetries } from "./rateLimit.js";
 export type ApiClient = {
   get: <T>(path: string, query?: Record<string, string | number>) => Promise<T>;
   put: <T>(path: string, body?: Record<string, unknown>) => Promise<T | undefined>;
+  post: <T>(path: string, body?: Record<string, unknown>) => Promise<T | undefined>;
+  delete: <T>(path: string) => Promise<T | undefined>;
 };
 
 class ApiError extends Error {
@@ -62,7 +64,7 @@ const buildUrl = (path: string, query?: Record<string, string | number>) => {
 
 export const createApiClient = (db: Database.Database, accountName: "source" | "target"): ApiClient => {
   const request = async <T>(
-    method: "GET" | "PUT",
+    method: "GET" | "PUT" | "POST" | "DELETE",
     path: string,
     body?: Record<string, unknown>,
     query?: Record<string, string | number>
@@ -98,6 +100,10 @@ export const createApiClient = (db: Database.Database, accountName: "source" | "
     get: <T>(path: string, query?: Record<string, string | number>) =>
       request<T>("GET", path, undefined, query) as Promise<T>,
     put: <T>(path: string, body?: Record<string, unknown>) =>
-      request<T>("PUT", path, body)
+      request<T>("PUT", path, body),
+    post: <T>(path: string, body?: Record<string, unknown>) =>
+      request<T>("POST", path, body),
+    delete: <T>(path: string) =>
+      request<T>("DELETE", path)
   };
 };
