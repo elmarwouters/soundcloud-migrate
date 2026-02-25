@@ -35,6 +35,8 @@ Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 
 The workflow authenticates both accounts using the provided credentials, runs the migration, and caches the SQLite DB between runs so progress is preserved and the migration can be safely resumed.
 
+> **MFA accounts:** The password grant does not support multi-factor authentication. If either account has MFA enabled, follow the [MFA fallback](#mfa-fallback-seed-pre-obtained-tokens) section below instead.
+
 ---
 
 ## Local usage
@@ -104,6 +106,79 @@ node dist/cli.js run followings --limit 200 --sleep 900
 - `--sleep`: milliseconds to sleep between follow actions
 
 Progress is persisted in SQLite so you can safely rerun the command to resume.
+
+---
+
+## MFA fallback — seed pre-obtained tokens
+
+If an account has **multi-factor authentication (MFA) enabled**, the password grant used by `sc-migrate login` will not work. Use the following one-time local flow to obtain tokens, then inject them as GitHub Secrets.
+
+### Step 1 — Obtain tokens locally (one-time)
+
+Install dependencies, build, and authenticate via the browser OAuth flow:
+
+```bash
+npm install
+npm run build
+```
+
+```bash
+cp .env.example .env
+# Fill in SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET
+```
+
+```bash
+node dist/cli.js connect source   # log in as your OLD account
+node dist/cli.js connect target   # log in as your NEW account
+```
+
+### Step 2 — Extract tokens from the local database
+
+```bash
+sqlite3 data/migrate.sqlite "SELECT name, access_token, refresh_token FROM accounts;"
+```
+
+This outputs something like:
+
+```
+source|ACCESS_TOKEN_SOURCE|REFRESH_TOKEN_SOURCE
+target|ACCESS_TOKEN_TARGET|REFRESH_TOKEN_TARGET
+```
+
+### Step 3 — Add token secrets to GitHub
+
+In **Settings → Secrets and variables → Actions** add:
+
+| Secret | Value |
+|---|---|
+| `SC_SOURCE_ACCESS_TOKEN` | `access_token` for the **source** account row |
+| `SC_SOURCE_REFRESH_TOKEN` | `refresh_token` for the **source** account row |
+| `SC_TARGET_ACCESS_TOKEN` | `access_token` for the **target** account row |
+| `SC_TARGET_REFRESH_TOKEN` | `refresh_token` for the **target** account row |
+
+### Step 4 — Update the workflow to use `seed`
+
+In `.github/workflows/migrate.yml`, replace the `Login source/target account` steps with:
+
+```yaml
+- name: Seed source account tokens
+  run: node dist/cli.js seed source
+  env:
+    SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
+    SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
+    DB_PATH: ./data/migrate.sqlite
+    SC_SOURCE_ACCESS_TOKEN: ${{ secrets.SC_SOURCE_ACCESS_TOKEN }}
+    SC_SOURCE_REFRESH_TOKEN: ${{ secrets.SC_SOURCE_REFRESH_TOKEN }}
+
+- name: Seed target account tokens
+  run: node dist/cli.js seed target
+  env:
+    SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
+    SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
+    DB_PATH: ./data/migrate.sqlite
+    SC_TARGET_ACCESS_TOKEN: ${{ secrets.SC_TARGET_ACCESS_TOKEN }}
+    SC_TARGET_REFRESH_TOKEN: ${{ secrets.SC_TARGET_REFRESH_TOKEN }}
+```
 
 ---
 

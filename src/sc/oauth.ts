@@ -148,7 +148,11 @@ export const loginWithCredentials = async (
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Login failed: ${response.status} ${text}`);
+    const mfaHint =
+      response.status === 401
+        ? " If MFA is enabled on this account, the password grant is not supported — use 'sc-migrate connect' locally and then 'sc-migrate seed' to inject the tokens."
+        : "";
+    throw new Error(`Login failed: ${response.status} ${text}${mfaHint}`);
   }
 
   const data = (await response.json()) as TokenResponse;
