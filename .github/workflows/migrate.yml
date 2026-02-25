@@ -22,11 +22,15 @@ on:
         required: false
         default: '900'
 
+concurrency:
+  group: soundcloud-migration
+  cancel-in-progress: false
+
 jobs:
   migrate:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +46,9 @@ jobs:
 
       - name: Ensure data directory exists
         run: mkdir -p data
+
+      - name: Install sqlite3
+        run: sudo apt-get install -y sqlite3
 
       - name: Authenticate source account
         run: |
@@ -81,18 +88,19 @@ jobs:
           LIMIT: ${{ inputs.limit }}
           SLEEP: ${{ inputs.sleep }}
 
-      - name: Clear account tokens from database
+      - name: Upload migration database artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migrate-sqlite
+          path: data/migrate.sqlite
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Clear account tokens and remove database
         if: always()
         run: |
           if [ -f data/migrate.sqlite ]; then
             sqlite3 data/migrate.sqlite "DELETE FROM accounts;"
+            rm -f data/migrate.sqlite
           fi
-
-      - name: Commit migration database
-        if: always()
-        run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          git add data/migrate.sqlite
-          git diff --cached --quiet || git commit -m "chore: update migration database [skip ci]"
-          git push
