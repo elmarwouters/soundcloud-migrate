@@ -29,9 +29,9 @@ In your GitHub repository go to **Settings → Secrets and variables → Actions
 
 Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 
-- **job**: migration to run (default: `followings`)
+- **job**: migration to run (`followings`, `likes`, `reposts`, or `all` — default: `followings`)
 - **limit**: API page size (default: `200`)
-- **sleep**: ms between follow actions (default: `900`)
+- **sleep**: ms between actions (default: `900`)
 
 The workflow authenticates both accounts using the provided credentials, runs the migration, and caches the SQLite DB between runs so progress is preserved and the migration can be safely resumed.
 
@@ -96,14 +96,26 @@ SC_SOURCE_USERNAME=your@email.com SC_SOURCE_PASSWORD=yourpassword node dist/cli.
 SC_TARGET_USERNAME=your@email.com SC_TARGET_PASSWORD=yourpassword node dist/cli.js login target
 ```
 
-### Run followings migration
+### Run migrations
 
 ```bash
 node dist/cli.js run followings --limit 200 --sleep 900
+node dist/cli.js run likes --limit 200 --sleep 900
+node dist/cli.js run reposts --limit 200 --sleep 900
+node dist/cli.js run all --limit 200 --sleep 900
 ```
 
 - `--limit`: page size for the SoundCloud API (max 200)
-- `--sleep`: milliseconds to sleep between follow actions
+- `--sleep`: milliseconds to sleep between actions
+
+Available jobs:
+
+| Job | Description |
+|---|---|
+| `followings` | Follow all users that the source account follows |
+| `likes` | Like all tracks that the source account has liked |
+| `reposts` | Repost all tracks that the source account has reposted |
+| `all` | Run all of the above in sequence |
 
 Progress is persisted in SQLite so you can safely rerun the command to resume.
 

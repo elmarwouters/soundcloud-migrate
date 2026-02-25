@@ -5,6 +5,8 @@ import { config } from "./config.js";
 import { initializeDb, upsertAccount } from "./db/db.js";
 import { connectAccount, loginWithCredentials } from "./sc/oauth.js";
 import { runFollowingsMigration } from "./jobs/followings.js";
+import { runLikesMigration } from "./jobs/likes.js";
+import { runRepostsMigration } from "./jobs/reposts.js";
 import { logger } from "./logger.js";
 
 const program = new Command();
@@ -51,6 +53,26 @@ program
 
     if (job === "followings") {
       await runFollowingsMigration(db, { limit, sleepMs });
+      db.close();
+      return;
+    }
+
+    if (job === "likes") {
+      await runLikesMigration(db, { limit, sleepMs });
+      db.close();
+      return;
+    }
+
+    if (job === "reposts") {
+      await runRepostsMigration(db, { limit, sleepMs });
+      db.close();
+      return;
+    }
+
+    if (job === "all") {
+      await runFollowingsMigration(db, { limit, sleepMs });
+      await runLikesMigration(db, { limit, sleepMs });
+      await runRepostsMigration(db, { limit, sleepMs });
       db.close();
       return;
     }
