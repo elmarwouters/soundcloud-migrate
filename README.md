@@ -12,7 +12,39 @@ The recommended way to run this tool is through GitHub Actions — no local Node
 2. Register a new app and note your **Client ID** and **Client Secret**.
 3. Add `http://127.0.0.1:17892/callback` as a redirect URI.
 
-### Step 2 — Add secrets to GitHub
+### Step 2 — Obtain tokens locally (one-time)
+
+Install dependencies, build, and authenticate via the browser OAuth flow on your local machine:
+
+```bash
+npm install
+npm run build
+```
+
+```bash
+cp .env.example .env
+# Fill in SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET
+```
+
+```bash
+node dist/cli.js connect source   # log in as your OLD account
+node dist/cli.js connect target   # log in as your NEW account
+```
+
+### Step 3 — Extract tokens from the local database
+
+```bash
+sqlite3 data/migrate.sqlite "SELECT name, access_token, refresh_token FROM accounts;"
+```
+
+This outputs something like:
+
+```
+source|ACCESS_TOKEN_SOURCE|REFRESH_TOKEN_SOURCE
+target|ACCESS_TOKEN_TARGET|REFRESH_TOKEN_TARGET
+```
+
+### Step 4 — Add secrets to GitHub
 
 In your GitHub repository go to **Settings → Secrets and variables → Actions** and add:
 
@@ -20,12 +52,12 @@ In your GitHub repository go to **Settings → Secrets and variables → Actions
 |---|---|
 | `SOUNDCLOUD_CLIENT_ID` | Your SoundCloud app client ID |
 | `SOUNDCLOUD_CLIENT_SECRET` | Your SoundCloud app client secret |
-| `SC_SOURCE_USERNAME` | SoundCloud username or e-mail of the **source** (old) account |
-| `SC_SOURCE_PASSWORD` | SoundCloud password of the **source** (old) account |
-| `SC_TARGET_USERNAME` | SoundCloud username or e-mail of the **target** (new) account |
-| `SC_TARGET_PASSWORD` | SoundCloud password of the **target** (new) account |
+| `SC_SOURCE_ACCESS_TOKEN` | `access_token` for the **source** account |
+| `SC_SOURCE_REFRESH_TOKEN` | `refresh_token` for the **source** account |
+| `SC_TARGET_ACCESS_TOKEN` | `access_token` for the **target** account |
+| `SC_TARGET_REFRESH_TOKEN` | `refresh_token` for the **target** account |
 
-### Step 3 — Trigger the workflow
+### Step 5 — Trigger the workflow
 
 Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 
@@ -33,9 +65,7 @@ Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 - **limit**: API page size (default: `200`)
 - **sleep**: ms between actions (default: `900`)
 
-The workflow authenticates both accounts using the provided credentials, runs the migration, and caches the SQLite DB between runs so progress is preserved and the migration can be safely resumed.
-
-> **MFA accounts:** The password grant does not support multi-factor authentication. If either account has MFA enabled, follow the [MFA fallback](#mfa-fallback-seed-pre-obtained-tokens) section below instead.
+The workflow seeds both accounts using pre-obtained tokens, runs the migration, and caches the SQLite DB between runs so progress is preserved and the migration can be safely resumed.
 
 ---
 
@@ -87,15 +117,6 @@ node dist/cli.js connect target
 
 The CLI will open the SoundCloud authorization page in your browser and start a local callback server on `http://127.0.0.1:<REDIRECT_PORT>/callback`.
 
-### Login accounts (credential-based, no browser)
-
-Alternatively, authenticate using your SoundCloud username and password directly (no browser required):
-
-```bash
-SC_SOURCE_USERNAME=your@email.com SC_SOURCE_PASSWORD=yourpassword node dist/cli.js login source
-SC_TARGET_USERNAME=your@email.com SC_TARGET_PASSWORD=yourpassword node dist/cli.js login target
-```
-
 ### Run migrations
 
 ```bash
@@ -121,83 +142,9 @@ Progress is persisted in SQLite so you can safely rerun the command to resume.
 
 ---
 
-## MFA fallback — seed pre-obtained tokens
-
-If an account has **multi-factor authentication (MFA) enabled**, the password grant used by `sc-migrate login` will not work. Use the following one-time local flow to obtain tokens, then inject them as GitHub Secrets.
-
-### Step 1 — Obtain tokens locally (one-time)
-
-Install dependencies, build, and authenticate via the browser OAuth flow:
-
-```bash
-npm install
-npm run build
-```
-
-```bash
-cp .env.example .env
-# Fill in SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET
-```
-
-```bash
-node dist/cli.js connect source   # log in as your OLD account
-node dist/cli.js connect target   # log in as your NEW account
-```
-
-### Step 2 — Extract tokens from the local database
-
-```bash
-sqlite3 data/migrate.sqlite "SELECT name, access_token, refresh_token FROM accounts;"
-```
-
-This outputs something like:
-
-```
-source|ACCESS_TOKEN_SOURCE|REFRESH_TOKEN_SOURCE
-target|ACCESS_TOKEN_TARGET|REFRESH_TOKEN_TARGET
-```
-
-### Step 3 — Add token secrets to GitHub
-
-In **Settings → Secrets and variables → Actions** add:
-
-| Secret | Value |
-|---|---|
-| `SC_SOURCE_ACCESS_TOKEN` | `access_token` for the **source** account row |
-| `SC_SOURCE_REFRESH_TOKEN` | `refresh_token` for the **source** account row |
-| `SC_TARGET_ACCESS_TOKEN` | `access_token` for the **target** account row |
-| `SC_TARGET_REFRESH_TOKEN` | `refresh_token` for the **target** account row |
-
-### Step 4 — Update the workflow to use `seed`
-
-In `.github/workflows/migrate.yml`, replace the `Login source/target account` steps with:
-
-```yaml
-- name: Seed source account tokens
-  run: node dist/cli.js seed source
-  env:
-    SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
-    SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
-    DB_PATH: ./data/migrate.sqlite
-    SC_SOURCE_ACCESS_TOKEN: ${{ secrets.SC_SOURCE_ACCESS_TOKEN }}
-    SC_SOURCE_REFRESH_TOKEN: ${{ secrets.SC_SOURCE_REFRESH_TOKEN }}
-
-- name: Seed target account tokens
-  run: node dist/cli.js seed target
-  env:
-    SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
-    SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
-    DB_PATH: ./data/migrate.sqlite
-    SC_TARGET_ACCESS_TOKEN: ${{ secrets.SC_TARGET_ACCESS_TOKEN }}
-    SC_TARGET_REFRESH_TOKEN: ${{ secrets.SC_TARGET_REFRESH_TOKEN }}
-```
-
----
-
 ## Notes
 
 - Uses OAuth 2.1 PKCE flow with S256 (browser-based `connect` command).
-- Credential-based login uses the SoundCloud password grant (no browser required).
 - Uses SQLite for idempotent processing and resuming progress.
 - Only official SoundCloud API endpoints are used.
 

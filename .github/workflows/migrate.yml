@@ -10,6 +10,9 @@ on:
         type: choice
         options:
           - followings
+          - likes
+          - reposts
+          - all
       limit:
         description: 'Page size for SoundCloud API (max 200)'
         required: false
@@ -48,23 +51,23 @@ jobs:
       - name: Ensure data directory exists
         run: mkdir -p data
 
-      - name: Login source account
-        run: node dist/cli.js login source
+      - name: Seed source account tokens
+        run: node dist/cli.js seed source
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
           DB_PATH: ./data/migrate.sqlite
-          SC_SOURCE_USERNAME: ${{ secrets.SC_SOURCE_USERNAME }}
-          SC_SOURCE_PASSWORD: ${{ secrets.SC_SOURCE_PASSWORD }}
+          SC_SOURCE_ACCESS_TOKEN: ${{ secrets.SC_SOURCE_ACCESS_TOKEN }}
+          SC_SOURCE_REFRESH_TOKEN: ${{ secrets.SC_SOURCE_REFRESH_TOKEN }}
 
-      - name: Login target account
-        run: node dist/cli.js login target
+      - name: Seed target account tokens
+        run: node dist/cli.js seed target
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
           DB_PATH: ./data/migrate.sqlite
-          SC_TARGET_USERNAME: ${{ secrets.SC_TARGET_USERNAME }}
-          SC_TARGET_PASSWORD: ${{ secrets.SC_TARGET_PASSWORD }}
+          SC_TARGET_ACCESS_TOKEN: ${{ secrets.SC_TARGET_ACCESS_TOKEN }}
+          SC_TARGET_REFRESH_TOKEN: ${{ secrets.SC_TARGET_REFRESH_TOKEN }}
 
       - name: Run migration
         run: node dist/cli.js run "$JOB" --limit "$LIMIT" --sleep "$SLEEP"
