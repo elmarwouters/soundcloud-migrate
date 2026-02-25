@@ -124,6 +124,49 @@ export const refreshAccessToken = async (refreshToken: string) => {
   return data;
 };
 
+export const loginWithCredentials = async (
+  db: Database.Database,
+  name: "source" | "target",
+  username: string,
+  password: string
+) => {
+  const params = new URLSearchParams({
+    grant_type: "password",
+    client_id: config.SOUNDCLOUD_CLIENT_ID,
+    client_secret: config.SOUNDCLOUD_CLIENT_SECRET,
+    username,
+    password
+  });
+
+  const response = await fetch(OAUTH_CONFIG.tokenUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: params
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Login failed: ${response.status} ${text}`);
+  }
+
+  const data = (await response.json()) as TokenResponse;
+  if (!data.access_token || !data.refresh_token || !data.expires_in) {
+    throw new Error("Login response missing required fields");
+  }
+
+  const expiresAt = Date.now() + data.expires_in * 1000;
+  upsertAccount(db, {
+    name,
+    access_token: data.access_token,
+    refresh_token: data.refresh_token,
+    expires_at: expiresAt
+  });
+
+  logger.info({ name }, "Stored OAuth tokens for account via credentials");
+};
+
 export const connectAccount = async (db: Database.Database, name: "source" | "target") => {
   const { verifier, challenge } = generatePkce();
   const state = base64UrlEncode(crypto.randomBytes(16));
