@@ -12,39 +12,7 @@ The recommended way to run this tool is through GitHub Actions — no local Node
 2. Register a new app and note your **Client ID** and **Client Secret**.
 3. Add `http://127.0.0.1:17892/callback` as a redirect URI.
 
-### Step 2 — Obtain tokens locally (one-time)
-
-Install dependencies, build, and authenticate via the browser OAuth flow on your local machine:
-
-```bash
-npm install
-npm run build
-```
-
-```bash
-cp .env.example .env
-# Fill in SOUNDCLOUD_CLIENT_ID and SOUNDCLOUD_CLIENT_SECRET
-```
-
-```bash
-node dist/cli.js connect source   # log in as your OLD account
-node dist/cli.js connect target   # log in as your NEW account
-```
-
-### Step 3 — Extract tokens from the local database
-
-```bash
-sqlite3 data/migrate.sqlite "SELECT name, access_token, refresh_token FROM accounts;"
-```
-
-This outputs something like:
-
-```
-source|ACCESS_TOKEN_SOURCE|REFRESH_TOKEN_SOURCE
-target|ACCESS_TOKEN_TARGET|REFRESH_TOKEN_TARGET
-```
-
-### Step 4 — Add secrets to GitHub
+### Step 2 — Add secrets to GitHub
 
 In your GitHub repository go to **Settings → Secrets and variables → Actions** and add:
 
@@ -52,12 +20,12 @@ In your GitHub repository go to **Settings → Secrets and variables → Actions
 |---|---|
 | `SOUNDCLOUD_CLIENT_ID` | Your SoundCloud app client ID |
 | `SOUNDCLOUD_CLIENT_SECRET` | Your SoundCloud app client secret |
-| `SC_SOURCE_ACCESS_TOKEN` | `access_token` for the **source** account |
-| `SC_SOURCE_REFRESH_TOKEN` | `refresh_token` for the **source** account |
-| `SC_TARGET_ACCESS_TOKEN` | `access_token` for the **target** account |
-| `SC_TARGET_REFRESH_TOKEN` | `refresh_token` for the **target** account |
+| `SC_SOURCE_USERNAME` | SoundCloud username or e-mail of the **source** (old) account |
+| `SC_SOURCE_PASSWORD` | SoundCloud password of the **source** (old) account |
+| `SC_TARGET_USERNAME` | SoundCloud username or e-mail of the **target** (new) account |
+| `SC_TARGET_PASSWORD` | SoundCloud password of the **target** (new) account |
 
-### Step 5 — Trigger the workflow
+### Step 3 — Trigger the workflow
 
 Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 
@@ -65,7 +33,7 @@ Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 - **limit**: API page size (default: `200`)
 - **sleep**: ms between actions (default: `900`)
 
-The workflow seeds both accounts using pre-obtained tokens, runs the migration, and automatically commits the updated SQLite database back to the repository after each run. Account tokens are cleared from the database before committing so credentials are never stored in git history. Progress is preserved across runs — re-running the workflow resumes from where it left off.
+The workflow authenticates both accounts using a headless browser driven by your credentials, runs the migration, and automatically commits the updated SQLite database back to the repository after each run. Account tokens are cleared from the database before committing so credentials are never stored in git history. Progress is preserved across runs — re-running the workflow resumes from where it left off.
 
 ---
 
@@ -106,16 +74,17 @@ Optional settings:
 npm run build
 ```
 
-### Connect accounts (browser-based OAuth)
+### Connect accounts
 
-Authenticate and store tokens for the source and target accounts using the browser OAuth flow:
+Authenticate and store tokens for the source and target accounts. The `connect` command works in two modes:
+
+- **Interactive** (default): Opens the SoundCloud authorization page in your browser and listens for the OAuth callback on `http://127.0.0.1:<REDIRECT_PORT>/callback`.
+- **Headless**: If `SC_SOURCE_USERNAME` / `SC_SOURCE_PASSWORD` (or `SC_TARGET_...`) environment variables are set, the command automates the login using a headless Chrome browser instead of opening a tab.
 
 ```bash
 node dist/cli.js connect source
 node dist/cli.js connect target
 ```
-
-The CLI will open the SoundCloud authorization page in your browser and start a local callback server on `http://127.0.0.1:<REDIRECT_PORT>/callback`.
 
 ### Run migrations
 

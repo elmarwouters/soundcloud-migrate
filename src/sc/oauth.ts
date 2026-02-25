@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { existsSync } from "node:fs";
 import http from "node:http";
 import { URL } from "node:url";
 import open from "open";
@@ -204,4 +205,92 @@ export const connectAccount = async (db: Database.Database, name: "source" | "ta
   });
 
   logger.info({ name }, "Stored OAuth tokens for account");
+};
+
+const findChromePath = (): string => {
+  const candidates = [
+    process.env.CHROME_PATH,
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/chromium",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+  ].filter(Boolean) as string[];
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  throw new Error(
+    "No Chrome/Chromium executable found. Set the CHROME_PATH environment variable to point to your Chrome binary."
+  );
+};
+
+export const headlessConnectAccount = async (
+  db: Database.Database,
+  name: "source" | "target",
+  username: string,
+  password: string
+) => {
+  const { verifier, challenge } = generatePkce();
+  const state = base64UrlEncode(crypto.randomBytes(16));
+  const redirectUri = `http://${OAUTH_CONFIG.redirectHost}:${config.REDIRECT_PORT}/callback`;
+
+  const authorizeUrl = new URL(OAUTH_CONFIG.authorizeUrl);
+  authorizeUrl.searchParams.set("client_id", config.SOUNDCLOUD_CLIENT_ID);
+  authorizeUrl.searchParams.set("redirect_uri", redirectUri);
+  authorizeUrl.searchParams.set("response_type", "code");
+  authorizeUrl.searchParams.set("code_challenge", challenge);
+  authorizeUrl.searchParams.set("code_challenge_method", "S256");
+  authorizeUrl.searchParams.set("scope", "non-expiring");
+  authorizeUrl.searchParams.set("state", state);
+
+  const codePromise = waitForOAuthCode(config.REDIRECT_PORT, state);
+
+  const { launch } = await import("puppeteer-core");
+  const browser = await launch({
+    executablePath: findChromePath(),
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
+
+  try {
+    const page = await browser.newPage();
+    logger.info({ name, url: authorizeUrl.toString() }, "Opening SoundCloud authorization page in headless browser");
+
+    await page.goto(authorizeUrl.toString(), { waitUntil: "networkidle2" });
+
+    await page.waitForSelector("input[type=\"password\"]", { timeout: 15_000 });
+
+    const usernameField = await page.$(
+      "input[type=\"email\"], input[name=\"username\"], input[autocomplete=\"username\"]"
+    );
+    if (!usernameField) {
+      throw new Error("Username input not found on the SoundCloud sign-in page");
+    }
+    await usernameField.type(username);
+
+    const passwordField = await page.$("input[type=\"password\"]");
+    if (!passwordField) {
+      throw new Error("Password input not found on the SoundCloud sign-in page");
+    }
+    await passwordField.type(password);
+    await page.keyboard.press("Enter");
+
+    logger.info({ name }, "Credentials submitted, waiting for OAuth callback");
+    const { code } = await codePromise;
+
+    const tokenResponse = await exchangeCodeForToken(code, verifier, redirectUri);
+    const expiresAt = Date.now() + tokenResponse.expires_in * 1000;
+
+    upsertAccount(db, {
+      name,
+      access_token: tokenResponse.access_token,
+      refresh_token: tokenResponse.refresh_token,
+      expires_at: expiresAt
+    });
+
+    logger.info({ name }, "Stored OAuth tokens for account via headless browser");
+  } finally {
+    await browser.close();
+  }
 };
