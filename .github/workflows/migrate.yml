@@ -10,6 +10,9 @@ on:
         type: choice
         options:
           - followings
+          - likes
+          - reposts
+          - all
       limit:
         description: 'Page size for SoundCloud API (max 200)'
         required: false
@@ -23,21 +26,13 @@ jobs:
   migrate:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Restore migration DB cache
-        uses: actions/cache@v4
-        with:
-          path: data/migrate.sqlite
-          key: migrate-db-${{ github.run_id }}
-          restore-keys: |
-            migrate-db-
 
       - name: Install dependencies
         run: npm install
@@ -48,8 +43,8 @@ jobs:
       - name: Ensure data directory exists
         run: mkdir -p data
 
-      - name: Login source account
-        run: node dist/cli.js login source
+      - name: Connect source account
+        run: node dist/cli.js connect source
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
@@ -57,8 +52,8 @@ jobs:
           SC_SOURCE_USERNAME: ${{ secrets.SC_SOURCE_USERNAME }}
           SC_SOURCE_PASSWORD: ${{ secrets.SC_SOURCE_PASSWORD }}
 
-      - name: Login target account
-        run: node dist/cli.js login target
+      - name: Connect target account
+        run: node dist/cli.js connect target
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
@@ -75,3 +70,19 @@ jobs:
           JOB: ${{ inputs.job }}
           LIMIT: ${{ inputs.limit }}
           SLEEP: ${{ inputs.sleep }}
+
+      - name: Clear account tokens from database
+        if: always()
+        run: |
+          if [ -f data/migrate.sqlite ]; then
+            sqlite3 data/migrate.sqlite "DELETE FROM accounts;"
+          fi
+
+      - name: Commit migration database
+        if: always()
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add data/migrate.sqlite
+          git diff --cached --quiet || git commit -m "chore: update migration database [skip ci]"
+          git push

@@ -3,7 +3,7 @@ import "dotenv/config";
 import { Command } from "commander";
 import { config } from "./config.js";
 import { initializeDb, upsertAccount } from "./db/db.js";
-import { connectAccount, loginWithCredentials } from "./sc/oauth.js";
+import { connectAccount, headlessConnectAccount, loginWithCredentials } from "./sc/oauth.js";
 import { runFollowingsMigration } from "./jobs/followings.js";
 import { runLikesMigration } from "./jobs/likes.js";
 import { runRepostsMigration } from "./jobs/reposts.js";
@@ -19,14 +19,22 @@ program
 program
   .command("connect")
   .argument("<account>", "Account name: source or target")
+  .description("Obtain OAuth tokens via browser (interactive) or headless if SC_<ACCOUNT>_USERNAME/PASSWORD env vars are set")
   .action(async (account: string) => {
     if (account !== "source" && account !== "target") {
       logger.error("Account must be either 'source' or 'target'");
       process.exitCode = 1;
       return;
     }
+    const prefix = `SC_${account.toUpperCase()}`;
+    const username = process.env[`${prefix}_USERNAME`];
+    const password = process.env[`${prefix}_PASSWORD`];
     const db = initializeDb(config.DB_PATH);
-    await connectAccount(db, account);
+    if (username && password) {
+      await headlessConnectAccount(db, account, username, password);
+    } else {
+      await connectAccount(db, account);
+    }
     db.close();
   });
 
