@@ -3,7 +3,7 @@ import "dotenv/config";
 import { Command } from "commander";
 import { config } from "./config.js";
 import { initializeDb, upsertAccount } from "./db/db.js";
-import { connectAccount } from "./sc/oauth.js";
+import { connectAccount, loginWithCredentials } from "./sc/oauth.js";
 import { runFollowingsMigration } from "./jobs/followings.js";
 import { logger } from "./logger.js";
 
@@ -58,6 +58,31 @@ program
     db.close();
     logger.error({ job }, "Unknown job");
     process.exitCode = 1;
+  });
+
+program
+  .command("login")
+  .argument("<account>", "Account name: source or target")
+  .description("Obtain OAuth tokens via username/password credentials (for CI/CD, no browser required)")
+  .action(async (account: string) => {
+    if (account !== "source" && account !== "target") {
+      logger.error("Account must be either 'source' or 'target'");
+      process.exitCode = 1;
+      return;
+    }
+    const prefix = `SC_${account.toUpperCase()}`;
+    const username = process.env[`${prefix}_USERNAME`];
+    const password = process.env[`${prefix}_PASSWORD`];
+    if (!username || !password) {
+      logger.error(
+        `${prefix}_USERNAME and ${prefix}_PASSWORD environment variables must be set`
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const db = initializeDb(config.DB_PATH);
+    await loginWithCredentials(db, account, username, password);
+    db.close();
   });
 
 program
