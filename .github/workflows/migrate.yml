@@ -45,33 +45,29 @@ jobs:
 
       - name: Authenticate source account
         run: |
-          if [ -n "$SC_SOURCE_ACCESS_TOKEN" ] && [ -n "$SC_SOURCE_REFRESH_TOKEN" ]; then
-            node dist/cli.js seed source
-          else
-            node dist/cli.js login source
+          if [ -z "$SC_SOURCE_ACCESS_TOKEN" ] || [ -z "$SC_SOURCE_REFRESH_TOKEN" ]; then
+            echo "Error: SC_SOURCE_ACCESS_TOKEN and SC_SOURCE_REFRESH_TOKEN must be set as GitHub Secrets." >&2
+            exit 1
           fi
+          node dist/cli.js seed source
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
           DB_PATH: ./data/migrate.sqlite
-          SC_SOURCE_USERNAME: ${{ secrets.SC_SOURCE_USERNAME }}
-          SC_SOURCE_PASSWORD: ${{ secrets.SC_SOURCE_PASSWORD }}
           SC_SOURCE_ACCESS_TOKEN: ${{ secrets.SC_SOURCE_ACCESS_TOKEN }}
           SC_SOURCE_REFRESH_TOKEN: ${{ secrets.SC_SOURCE_REFRESH_TOKEN }}
 
       - name: Authenticate target account
         run: |
-          if [ -n "$SC_TARGET_ACCESS_TOKEN" ] && [ -n "$SC_TARGET_REFRESH_TOKEN" ]; then
-            node dist/cli.js seed target
-          else
-            node dist/cli.js login target
+          if [ -z "$SC_TARGET_ACCESS_TOKEN" ] || [ -z "$SC_TARGET_REFRESH_TOKEN" ]; then
+            echo "Error: SC_TARGET_ACCESS_TOKEN and SC_TARGET_REFRESH_TOKEN must be set as GitHub Secrets." >&2
+            exit 1
           fi
+          node dist/cli.js seed target
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
           DB_PATH: ./data/migrate.sqlite
-          SC_TARGET_USERNAME: ${{ secrets.SC_TARGET_USERNAME }}
-          SC_TARGET_PASSWORD: ${{ secrets.SC_TARGET_PASSWORD }}
           SC_TARGET_ACCESS_TOKEN: ${{ secrets.SC_TARGET_ACCESS_TOKEN }}
           SC_TARGET_REFRESH_TOKEN: ${{ secrets.SC_TARGET_REFRESH_TOKEN }}
 
