@@ -65,7 +65,7 @@ Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 - **limit**: API page size (default: `200`)
 - **sleep**: ms between actions (default: `900`)
 
-The workflow seeds both accounts using pre-obtained tokens, runs the migration, and caches the SQLite DB between runs so progress is preserved and the migration can be safely resumed.
+The workflow seeds both accounts using pre-obtained tokens, runs the migration, and automatically commits the updated SQLite database back to the repository after each run. Account tokens are cleared from the database before committing so credentials are never stored in git history. Progress is preserved across runs — re-running the workflow resumes from where it left off.
 
 ---
 
