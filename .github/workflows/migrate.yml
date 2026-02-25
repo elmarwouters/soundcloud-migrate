@@ -1,0 +1,78 @@
+name: SoundCloud Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Migration job to run'
+        required: true
+        default: 'followings'
+        type: choice
+        options:
+          - followings
+      limit:
+        description: 'Page size for SoundCloud API (max 200)'
+        required: false
+        default: '200'
+      sleep:
+        description: 'Sleep between follow actions (ms)'
+        required: false
+        default: '900'
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: soundcloud-migrate-cli
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Restore migration DB cache
+        uses: actions/cache@v4
+        with:
+          path: soundcloud-migrate-cli/data/migrate.sqlite
+          key: migrate-db-${{ github.run_id }}
+          restore-keys: |
+            migrate-db-
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+
+      - name: Seed source account tokens
+        run: node dist/cli.js seed source
+        env:
+          SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
+          SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
+          DB_PATH: ./data/migrate.sqlite
+          SC_SOURCE_ACCESS_TOKEN: ${{ secrets.SC_SOURCE_ACCESS_TOKEN }}
+          SC_SOURCE_REFRESH_TOKEN: ${{ secrets.SC_SOURCE_REFRESH_TOKEN }}
+
+      - name: Seed target account tokens
+        run: node dist/cli.js seed target
+        env:
+          SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
+          SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
+          DB_PATH: ./data/migrate.sqlite
+          SC_TARGET_ACCESS_TOKEN: ${{ secrets.SC_TARGET_ACCESS_TOKEN }}
+          SC_TARGET_REFRESH_TOKEN: ${{ secrets.SC_TARGET_REFRESH_TOKEN }}
+
+      - name: Run migration
+        run: node dist/cli.js run "$JOB" --limit "$LIMIT" --sleep "$SLEEP"
+        env:
+          SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
+          SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
+          DB_PATH: ./data/migrate.sqlite
+          JOB: ${{ inputs.job }}
+          LIMIT: ${{ inputs.limit }}
+          SLEEP: ${{ inputs.sleep }}
