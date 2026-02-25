@@ -151,11 +151,11 @@ export const loginWithCredentials = async (
     const text = await response.text();
     const mfaHint =
       response.status === 401
-        ? " If MFA is enabled on this account, the password grant is not supported — use 'sc-migrate connect' locally and then 'sc-migrate seed' to inject the tokens."
+        ? " If MFA is enabled on this account, the password grant is not supported — add SC_SOURCE_ACCESS_TOKEN and SC_SOURCE_REFRESH_TOKEN (or SC_TARGET_...) as GitHub secrets to use token injection instead."
         : "";
     const unsupportedGrantHint =
       response.status === 400 && text.includes("unsupported_grant_type")
-        ? " SoundCloud does not support the password grant type for this application. Use 'sc-migrate connect' locally and then 'sc-migrate seed' to inject the tokens instead."
+        ? " SoundCloud does not support the password grant type for this application. Add SC_SOURCE_ACCESS_TOKEN and SC_SOURCE_REFRESH_TOKEN (or SC_TARGET_...) as GitHub secrets to use token injection instead."
         : "";
     throw new Error(`Login failed: ${response.status} ${text}${mfaHint}${unsupportedGrantHint}`);
   }
