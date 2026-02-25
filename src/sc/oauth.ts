@@ -22,12 +22,6 @@ const base64UrlEncode = (buffer: Buffer) =>
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
 
-const generatePkce = () => {
-  const verifier = base64UrlEncode(crypto.randomBytes(64));
-  const challenge = base64UrlEncode(crypto.createHash("sha256").update(verifier).digest());
-  return { verifier, challenge };
-};
-
 const waitForOAuthCode = (port: number, expectedState: string) =>
   new Promise<{ code: string; state: string }>((resolve, reject) => {
     const server = http.createServer((req, res) => {
@@ -68,13 +62,13 @@ const waitForOAuthCode = (port: number, expectedState: string) =>
     });
   });
 
-const exchangeCodeForToken = async (code: string, verifier: string, redirectUri: string) => {
+const exchangeCodeForToken = async (code: string, redirectUri: string) => {
   const params = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: config.SOUNDCLOUD_CLIENT_ID,
+    client_secret: config.SOUNDCLOUD_CLIENT_SECRET,
     redirect_uri: redirectUri,
-    code,
-    code_verifier: verifier
+    code
   });
 
   const response = await fetch(OAUTH_CONFIG.tokenUrl, {
@@ -125,59 +119,7 @@ export const refreshAccessToken = async (refreshToken: string) => {
   return data;
 };
 
-export const loginWithCredentials = async (
-  db: Database.Database,
-  name: "source" | "target",
-  username: string,
-  password: string
-) => {
-  const params = new URLSearchParams({
-    grant_type: "password",
-    client_id: config.SOUNDCLOUD_CLIENT_ID,
-    client_secret: config.SOUNDCLOUD_CLIENT_SECRET,
-    username,
-    password
-  });
-
-  const response = await fetch(OAUTH_CONFIG.tokenUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
-    },
-    body: params
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    const mfaHint =
-      response.status === 401
-        ? " If MFA is enabled on this account, the password grant is not supported — add SC_SOURCE_ACCESS_TOKEN and SC_SOURCE_REFRESH_TOKEN (or SC_TARGET_...) as GitHub secrets to use token injection instead."
-        : "";
-    const unsupportedGrantHint =
-      response.status === 400 && text.includes("unsupported_grant_type")
-        ? " SoundCloud does not support the password grant type for this application. Add SC_SOURCE_ACCESS_TOKEN and SC_SOURCE_REFRESH_TOKEN (or SC_TARGET_...) as GitHub secrets to use token injection instead."
-        : "";
-    throw new Error(`Login failed: ${response.status} ${text}${mfaHint}${unsupportedGrantHint}`);
-  }
-
-  const data = (await response.json()) as TokenResponse;
-  if (!data.access_token || !data.refresh_token || !data.expires_in) {
-    throw new Error("Login response missing required fields");
-  }
-
-  const expiresAt = Date.now() + data.expires_in * 1000;
-  upsertAccount(db, {
-    name,
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    expires_at: expiresAt
-  });
-
-  logger.info({ name }, "Stored OAuth tokens for account via credentials");
-};
-
 export const connectAccount = async (db: Database.Database, name: "source" | "target") => {
-  const { verifier, challenge } = generatePkce();
   const state = base64UrlEncode(crypto.randomBytes(16));
   const redirectUri = `http://${OAUTH_CONFIG.redirectHost}:${config.REDIRECT_PORT}/callback`;
 
@@ -185,8 +127,6 @@ export const connectAccount = async (db: Database.Database, name: "source" | "ta
   authorizeUrl.searchParams.set("client_id", config.SOUNDCLOUD_CLIENT_ID);
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("code_challenge", challenge);
-  authorizeUrl.searchParams.set("code_challenge_method", "S256");
   authorizeUrl.searchParams.set("scope", "non-expiring");
   authorizeUrl.searchParams.set("state", state);
 
@@ -194,7 +134,7 @@ export const connectAccount = async (db: Database.Database, name: "source" | "ta
   await open(authorizeUrl.toString(), { wait: false });
 
   const { code } = await waitForOAuthCode(config.REDIRECT_PORT, state);
-  const tokenResponse = await exchangeCodeForToken(code, verifier, redirectUri);
+  const tokenResponse = await exchangeCodeForToken(code, redirectUri);
   const expiresAt = Date.now() + tokenResponse.expires_in * 1000;
 
   upsertAccount(db, {
@@ -231,7 +171,6 @@ export const headlessConnectAccount = async (
   username: string,
   password: string
 ) => {
-  const { verifier, challenge } = generatePkce();
   const state = base64UrlEncode(crypto.randomBytes(16));
   const redirectUri = `http://${OAUTH_CONFIG.redirectHost}:${config.REDIRECT_PORT}/callback`;
 
@@ -239,8 +178,6 @@ export const headlessConnectAccount = async (
   authorizeUrl.searchParams.set("client_id", config.SOUNDCLOUD_CLIENT_ID);
   authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("code_challenge", challenge);
-  authorizeUrl.searchParams.set("code_challenge_method", "S256");
   authorizeUrl.searchParams.set("scope", "non-expiring");
   authorizeUrl.searchParams.set("state", state);
 
@@ -286,7 +223,7 @@ export const headlessConnectAccount = async (
     logger.info({ name }, "Credentials submitted, waiting for OAuth callback");
     const { code } = await codePromise;
 
-    const tokenResponse = await exchangeCodeForToken(code, verifier, redirectUri);
+    const tokenResponse = await exchangeCodeForToken(code, redirectUri);
     const expiresAt = Date.now() + tokenResponse.expires_in * 1000;
 
     upsertAccount(db, {

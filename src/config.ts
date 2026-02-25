@@ -14,7 +14,7 @@ export type AppConfig = z.infer<typeof envSchema>;
 export const config: AppConfig = envSchema.parse(process.env);
 
 export const OAUTH_CONFIG = {
-  authorizeUrl: "https://soundcloud.com/connect",
+  authorizeUrl: "https://secure.soundcloud.com/authorize",
   tokenUrl: "https://api.soundcloud.com/oauth2/token",
   apiBaseUrl: "https://api.soundcloud.com",
   redirectHost: "127.0.0.1"
