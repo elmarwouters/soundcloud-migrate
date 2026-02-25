@@ -14,16 +14,40 @@ The recommended way to run this tool is through GitHub Actions — no local Node
 
 ### Step 2 — Add secrets to GitHub
 
-In your GitHub repository go to **Settings → Secrets and variables → Actions** and add:
+In your GitHub repository go to **Settings → Secrets and variables → Actions** and add the following secrets.
+
+**Always required:**
 
 | Secret | Value |
 |---|---|
 | `SOUNDCLOUD_CLIENT_ID` | Your SoundCloud app client ID |
 | `SOUNDCLOUD_CLIENT_SECRET` | Your SoundCloud app client secret |
+
+**Authentication — choose one of the two options below:**
+
+#### Option A — Username & password (password grant)
+
+Add your SoundCloud credentials and the workflow will authenticate via the API automatically:
+
+| Secret | Value |
+|---|---|
 | `SC_SOURCE_USERNAME` | SoundCloud username or e-mail of the **source** (old) account |
 | `SC_SOURCE_PASSWORD` | SoundCloud password of the **source** (old) account |
 | `SC_TARGET_USERNAME` | SoundCloud username or e-mail of the **target** (new) account |
 | `SC_TARGET_PASSWORD` | SoundCloud password of the **target** (new) account |
+
+#### Option B — Access tokens (token injection)
+
+If the password grant is rejected by SoundCloud (e.g. your app has MFA enabled or the grant type is restricted), obtain access and refresh tokens from the SoundCloud API — for example via [the SoundCloud OAuth playground](https://developers.soundcloud.com/) or another OAuth 2.0 client — and add them directly as secrets:
+
+| Secret | Value |
+|---|---|
+| `SC_SOURCE_ACCESS_TOKEN` | OAuth access token for the **source** account |
+| `SC_SOURCE_REFRESH_TOKEN` | OAuth refresh token for the **source** account |
+| `SC_TARGET_ACCESS_TOKEN` | OAuth access token for the **target** account |
+| `SC_TARGET_REFRESH_TOKEN` | OAuth refresh token for the **target** account |
+
+> When both options are configured for the same account, token injection (Option B) takes priority.
 
 ### Step 3 — Trigger the workflow
 
@@ -33,7 +57,7 @@ Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 - **limit**: API page size (default: `200`)
 - **sleep**: ms between actions (default: `900`)
 
-The workflow authenticates both accounts using a headless browser driven by your credentials, runs the migration, and automatically commits the updated SQLite database back to the repository after each run. Account tokens are cleared from the database before committing so credentials are never stored in git history. Progress is preserved across runs — re-running the workflow resumes from where it left off.
+The workflow authenticates both accounts directly via the SoundCloud API (no browser required), runs the migration, and automatically commits the updated SQLite database back to the repository after each run. Account tokens are cleared from the database before committing so credentials are never stored in git history. Progress is preserved across runs — re-running the workflow resumes from where it left off.
 
 ---
 
@@ -76,14 +100,20 @@ npm run build
 
 ### Connect accounts
 
-Authenticate and store tokens for the source and target accounts. The `connect` command works in two modes:
+Authenticate and store tokens for the source and target accounts.
 
-- **Interactive** (default): Opens the SoundCloud authorization page in your browser and listens for the OAuth callback on `http://127.0.0.1:<REDIRECT_PORT>/callback`.
-- **Headless**: If `SC_SOURCE_USERNAME` / `SC_SOURCE_PASSWORD` (or `SC_TARGET_...`) environment variables are set, the command automates the login using a headless Chrome browser instead of opening a tab.
+**Interactive** (opens browser for OAuth PKCE flow):
 
 ```bash
 node dist/cli.js connect source
 node dist/cli.js connect target
+```
+
+**API-based** (password grant, no browser):
+
+```bash
+SC_SOURCE_USERNAME=you@example.com SC_SOURCE_PASSWORD=secret node dist/cli.js login source
+SC_TARGET_USERNAME=you@example.com SC_TARGET_PASSWORD=secret node dist/cli.js login target
 ```
 
 ### Run migrations

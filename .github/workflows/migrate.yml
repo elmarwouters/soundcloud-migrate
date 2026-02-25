@@ -43,23 +43,37 @@ jobs:
       - name: Ensure data directory exists
         run: mkdir -p data
 
-      - name: Connect source account
-        run: node dist/cli.js connect source
+      - name: Authenticate source account
+        run: |
+          if [ -n "$SC_SOURCE_ACCESS_TOKEN" ] && [ -n "$SC_SOURCE_REFRESH_TOKEN" ]; then
+            node dist/cli.js seed source
+          else
+            node dist/cli.js login source
+          fi
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
           DB_PATH: ./data/migrate.sqlite
           SC_SOURCE_USERNAME: ${{ secrets.SC_SOURCE_USERNAME }}
           SC_SOURCE_PASSWORD: ${{ secrets.SC_SOURCE_PASSWORD }}
+          SC_SOURCE_ACCESS_TOKEN: ${{ secrets.SC_SOURCE_ACCESS_TOKEN }}
+          SC_SOURCE_REFRESH_TOKEN: ${{ secrets.SC_SOURCE_REFRESH_TOKEN }}
 
-      - name: Connect target account
-        run: node dist/cli.js connect target
+      - name: Authenticate target account
+        run: |
+          if [ -n "$SC_TARGET_ACCESS_TOKEN" ] && [ -n "$SC_TARGET_REFRESH_TOKEN" ]; then
+            node dist/cli.js seed target
+          else
+            node dist/cli.js login target
+          fi
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
           DB_PATH: ./data/migrate.sqlite
           SC_TARGET_USERNAME: ${{ secrets.SC_TARGET_USERNAME }}
           SC_TARGET_PASSWORD: ${{ secrets.SC_TARGET_PASSWORD }}
+          SC_TARGET_ACCESS_TOKEN: ${{ secrets.SC_TARGET_ACCESS_TOKEN }}
+          SC_TARGET_REFRESH_TOKEN: ${{ secrets.SC_TARGET_REFRESH_TOKEN }}
 
       - name: Run migration
         run: node dist/cli.js run "$JOB" --limit "$LIMIT" --sleep "$SLEEP"
