@@ -72,7 +72,7 @@ export const createApiClient = (db: Database.Database, accountName: "source" | "
     return withRetries(async () => {
       const account = await ensureValidToken(db, accountName);
       const headers: Record<string, string> = {
-        Authorization: `OAuth ${account.access_token}`,
+        Authorization: `Bearer ${account.access_token}`,
         "User-Agent": config.USER_AGENT
       };
       if (body) {
