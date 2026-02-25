@@ -49,6 +49,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Ensure data directory exists
+        run: mkdir -p data
+
       - name: Seed source account tokens
         run: node dist/cli.js seed source
         env:

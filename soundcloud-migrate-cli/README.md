@@ -9,11 +9,13 @@ Production-grade CLI tool to migrate actions between SoundCloud accounts using t
 
 ## Setup
 
+> **Running via GitHub Actions?** No `.env` file is needed. See [Running via GitHub Actions](#running-via-github-actions) for the secrets-based setup.
+
 ```bash
 npm install
 ```
 
-Create a `.env` file based on `.env.example`:
+Create a `.env` file based on `.env.example` (local development only):
 
 ```bash
 cp .env.example .env
