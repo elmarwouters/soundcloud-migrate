@@ -24,10 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    defaults:
-      run:
-        working-directory: soundcloud-migrate-cli
-
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +34,7 @@ jobs:
       - name: Restore migration DB cache
         uses: actions/cache@v4
         with:
-          path: soundcloud-migrate-cli/data/migrate.sqlite
+          path: data/migrate.sqlite
           key: migrate-db-${{ github.run_id }}
           restore-keys: |
             migrate-db-
