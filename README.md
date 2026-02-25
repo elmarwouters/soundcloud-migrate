@@ -33,7 +33,7 @@ Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 - **limit**: API page size (default: `200`)
 - **sleep**: ms between actions (default: `900`)
 
-The workflow authenticates both accounts using a headless browser driven by your credentials, runs the migration, and automatically commits the updated SQLite database back to the repository after each run. Account tokens are cleared from the database before committing so credentials are never stored in git history. Progress is preserved across runs — re-running the workflow resumes from where it left off.
+The workflow authenticates both accounts directly via the SoundCloud API (no browser required), runs the migration, and automatically commits the updated SQLite database back to the repository after each run. Account tokens are cleared from the database before committing so credentials are never stored in git history. Progress is preserved across runs — re-running the workflow resumes from where it left off.
 
 ---
 
@@ -76,15 +76,23 @@ npm run build
 
 ### Connect accounts
 
-Authenticate and store tokens for the source and target accounts. The `connect` command works in two modes:
+Authenticate and store tokens for the source and target accounts.
 
-- **Interactive** (default): Opens the SoundCloud authorization page in your browser and listens for the OAuth callback on `http://127.0.0.1:<REDIRECT_PORT>/callback`.
-- **Headless**: If `SC_SOURCE_USERNAME` / `SC_SOURCE_PASSWORD` (or `SC_TARGET_...`) environment variables are set, the command automates the login using a headless Chrome browser instead of opening a tab.
+**Interactive** (for local use): Opens the SoundCloud authorization page in your browser and listens for the OAuth callback on `http://127.0.0.1:<REDIRECT_PORT>/callback`.
 
 ```bash
 node dist/cli.js connect source
 node dist/cli.js connect target
 ```
+
+**API-based** (recommended for CI/CD): Authenticates directly against the SoundCloud token endpoint using username and password — no browser required. Set `SC_SOURCE_USERNAME` / `SC_SOURCE_PASSWORD` (or `SC_TARGET_...`) environment variables before running.
+
+```bash
+SC_SOURCE_USERNAME=you@example.com SC_SOURCE_PASSWORD=secret node dist/cli.js login source
+SC_TARGET_USERNAME=you@example.com SC_TARGET_PASSWORD=secret node dist/cli.js login target
+```
+
+> **Note:** If your SoundCloud app does not support the `password` grant type, obtain tokens locally with `connect` and then inject them into CI with the `seed` command using the `SC_SOURCE_ACCESS_TOKEN` / `SC_SOURCE_REFRESH_TOKEN` environment variables.
 
 ### Run migrations
 

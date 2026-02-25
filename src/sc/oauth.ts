@@ -259,22 +259,8 @@ export const headlessConnectAccount = async (
 
     await page.goto(authorizeUrl.toString(), { waitUntil: "networkidle2" });
 
-    // SoundCloud may show social sign-in options (Google, Apple) with a
-    // "Continue with email" button before the credential form is displayed.
-    // Click that button first if the email input is not yet in the DOM.
     const usernameSelector =
       "input[type=\"email\"], input[name=\"username\"], input[autocomplete=\"username\"], input[autocomplete=\"email\"]";
-    if (!(await page.$(usernameSelector))) {
-      const emailButton = await page.evaluateHandle((): HTMLElement | null => {
-        const els = Array.from(document.querySelectorAll<HTMLElement>("button, a"));
-        return els.find(el => /email/i.test(el.textContent ?? "")) ?? null;
-      });
-      const el = emailButton.asElement();
-      if (el) {
-        logger.info({ name }, "Clicking 'Continue with email' button on authorization page");
-        await el.click();
-      }
-    }
     await page.waitForSelector(usernameSelector, { timeout: 15_000 });
 
     const usernameField = await page.$(usernameSelector);

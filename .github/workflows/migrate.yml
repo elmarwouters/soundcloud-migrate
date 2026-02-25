@@ -43,8 +43,8 @@ jobs:
       - name: Ensure data directory exists
         run: mkdir -p data
 
-      - name: Connect source account
-        run: node dist/cli.js connect source
+      - name: Login source account
+        run: node dist/cli.js login source
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
@@ -52,8 +52,8 @@ jobs:
           SC_SOURCE_USERNAME: ${{ secrets.SC_SOURCE_USERNAME }}
           SC_SOURCE_PASSWORD: ${{ secrets.SC_SOURCE_PASSWORD }}
 
-      - name: Connect target account
-        run: node dist/cli.js connect target
+      - name: Login target account
+        run: node dist/cli.js login target
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
