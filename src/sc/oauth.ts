@@ -259,17 +259,24 @@ export const headlessConnectAccount = async (
 
     await page.goto(authorizeUrl.toString(), { waitUntil: "networkidle2" });
 
-    await page.waitForSelector("input[type=\"password\"]", { timeout: 15_000 });
+    const usernameSelector =
+      "input[type=\"email\"], input[name=\"username\"], input[autocomplete=\"username\"], input[autocomplete=\"email\"]";
+    await page.waitForSelector(usernameSelector, { timeout: 15_000 });
 
-    const usernameField = await page.$(
-      "input[type=\"email\"], input[name=\"username\"], input[autocomplete=\"username\"]"
-    );
+    const usernameField = await page.$(usernameSelector);
     if (!usernameField) {
       throw new Error("Username input not found on the SoundCloud sign-in page");
     }
     await usernameField.type(username);
 
-    const passwordField = await page.$("input[type=\"password\"]");
+    // Check if password field is already visible (single-step form), otherwise
+    // submit the email first and wait for the password field (two-step form).
+    let passwordField = await page.$("input[type=\"password\"]");
+    if (!passwordField) {
+      await page.keyboard.press("Enter");
+      await page.waitForSelector("input[type=\"password\"]", { timeout: 15_000 });
+      passwordField = await page.$("input[type=\"password\"]");
+    }
     if (!passwordField) {
       throw new Error("Password input not found on the SoundCloud sign-in page");
     }
