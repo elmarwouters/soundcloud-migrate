@@ -2,3 +2,5 @@ node_modules/
 dist/
 .env
 data/migrate.sqlite
+/soundcloud-tokens.env
+/.idea/

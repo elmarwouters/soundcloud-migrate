@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { createApiClient } from "../sc/api.js";
+import { createApiClient, ApiError } from "../sc/api.js";
 import { getProgress, isDone, markDone, upsertProgress } from "../db/db.js";
 import { sleep } from "../sc/rateLimit.js";
 import { logger } from "../logger.js";
@@ -61,13 +61,17 @@ export const runLikesMigration = async (
       }
 
       try {
-        await targetClient.put(`/me/likes/tracks/${trackId}`);
+        await targetClient.post(`/likes/tracks/${trackId}`);
         markDone(db, jobName, trackId);
         logger.info({ trackId }, "Liked track on target account");
         if (options.sleepMs > 0) {
           await sleep(options.sleepMs);
         }
       } catch (err) {
+        if (err instanceof ApiError && err.status === 429) {
+          logger.error({ err, trackId }, "Persistent rate limit hit. Stopping migration to avoid further blocks.");
+          throw err;
+        }
         logger.error({ err, trackId }, "Failed to like track on target account");
       }
     }

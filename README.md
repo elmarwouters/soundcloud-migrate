@@ -25,20 +25,9 @@ In your GitHub repository go to **Settings → Secrets and variables → Actions
 
 **Authentication — choose one of the two options below:**
 
-#### Option A — Username & password (password grant)
-
-Add your SoundCloud credentials and the workflow will authenticate via the API automatically:
-
-| Secret | Value |
-|---|---|
-| `SC_SOURCE_USERNAME` | SoundCloud username or e-mail of the **source** (old) account |
-| `SC_SOURCE_PASSWORD` | SoundCloud password of the **source** (old) account |
-| `SC_TARGET_USERNAME` | SoundCloud username or e-mail of the **target** (new) account |
-| `SC_TARGET_PASSWORD` | SoundCloud password of the **target** (new) account |
-
 #### Option B — Access tokens (token injection)
 
-If the password grant is rejected by SoundCloud (e.g. your app has MFA enabled or the grant type is restricted), obtain access and refresh tokens from the SoundCloud API — for example via [the SoundCloud OAuth playground](https://developers.soundcloud.com/) or another OAuth 2.0 client — and add them directly as secrets:
+Generate access and refresh tokens locally using the CLI OAuth connect command, then store them as GitHub repository secrets.
 
 | Secret | Value |
 |---|---|
@@ -46,8 +35,6 @@ If the password grant is rejected by SoundCloud (e.g. your app has MFA enabled o
 | `SC_SOURCE_REFRESH_TOKEN` | OAuth refresh token for the **source** account |
 | `SC_TARGET_ACCESS_TOKEN` | OAuth access token for the **target** account |
 | `SC_TARGET_REFRESH_TOKEN` | OAuth refresh token for the **target** account |
-
-> When both options are configured for the same account, token injection (Option B) takes priority.
 
 ### Step 3 — Trigger the workflow
 
@@ -57,7 +44,9 @@ Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 - **limit**: API page size (default: `200`)
 - **sleep**: ms between actions (default: `900`)
 
-The workflow authenticates both accounts directly via the SoundCloud API (no browser required), runs the migration, and automatically commits the updated SQLite database back to the repository after each run. Account tokens are cleared from the database before committing so credentials are never stored in git history. Progress is preserved across runs — re-running the workflow resumes from where it left off.
+The workflow uses the provided OAuth tokens to authenticate both accounts, runs the migration, and does not perform any interactive login. Tokens must already exist as repository secrets before running the workflow.
+
+Migration progress is persisted across runs by downloading the database artifact from the previous successful run. This allows the tool to resume from where it left off.
 
 ---
 
@@ -109,12 +98,13 @@ node dist/cli.js connect source
 node dist/cli.js connect target
 ```
 
-**API-based** (password grant, no browser):
+**Export tokens for GitHub Secrets:**
 
 ```bash
-SC_SOURCE_USERNAME=you@example.com SC_SOURCE_PASSWORD=secret node dist/cli.js login source
-SC_TARGET_USERNAME=you@example.com SC_TARGET_PASSWORD=secret node dist/cli.js login target
+node dist/cli.js tokens
 ```
+
+This creates a `soundcloud-tokens.env` file containing the tokens for both accounts. Copy these values to your GitHub repository secrets.
 
 ### Run migrations
 
