@@ -11,7 +11,7 @@ export type ApiClient = {
   delete: <T>(path: string) => Promise<T | undefined>;
 };
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
     this.name = "ApiError";
@@ -93,7 +93,7 @@ export const createApiClient = (db: Database.Database, accountName: "source" | "
         return undefined;
       }
       return (await response.json()) as T;
-    }, { retries: 3, baseMs: 500, capMs: 8_000, isRetryable: isRetryableError });
+    }, { retries: 5, baseMs: 1000, capMs: 30_000, isRetryable: isRetryableError });
   };
 
   return {

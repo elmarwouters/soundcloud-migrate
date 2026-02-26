@@ -21,12 +21,19 @@ on:
         description: 'Sleep between follow actions (ms)'
         required: false
         default: '900'
+  schedule:
+    - cron: '0 0 */2 * *'
+
+concurrency:
+  group: soundcloud-migration
+  cancel-in-progress: false
 
 jobs:
   migrate:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
 
@@ -43,35 +50,44 @@ jobs:
       - name: Ensure data directory exists
         run: mkdir -p data
 
+      - name: Download previous migration database
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: migrate.yml
+          name: migrate-sqlite
+          path: data
+          search_version: 'all'
+          if_no_artifact_found: ignore
+
+      - name: Install sqlite3
+        run: sudo apt-get install -y sqlite3
+
       - name: Authenticate source account
         run: |
-          if [ -n "$SC_SOURCE_ACCESS_TOKEN" ] && [ -n "$SC_SOURCE_REFRESH_TOKEN" ]; then
-            node dist/cli.js seed source
-          else
-            node dist/cli.js login source
+          if [ -z "$SC_SOURCE_ACCESS_TOKEN" ] || [ -z "$SC_SOURCE_REFRESH_TOKEN" ]; then
+            echo "Error: SC_SOURCE_ACCESS_TOKEN and SC_SOURCE_REFRESH_TOKEN must be set as GitHub Secrets." >&2
+            exit 1
           fi
+          node dist/cli.js seed source
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
           DB_PATH: ./data/migrate.sqlite
-          SC_SOURCE_USERNAME: ${{ secrets.SC_SOURCE_USERNAME }}
-          SC_SOURCE_PASSWORD: ${{ secrets.SC_SOURCE_PASSWORD }}
           SC_SOURCE_ACCESS_TOKEN: ${{ secrets.SC_SOURCE_ACCESS_TOKEN }}
           SC_SOURCE_REFRESH_TOKEN: ${{ secrets.SC_SOURCE_REFRESH_TOKEN }}
 
       - name: Authenticate target account
         run: |
-          if [ -n "$SC_TARGET_ACCESS_TOKEN" ] && [ -n "$SC_TARGET_REFRESH_TOKEN" ]; then
-            node dist/cli.js seed target
-          else
-            node dist/cli.js login target
+          if [ -z "$SC_TARGET_ACCESS_TOKEN" ] || [ -z "$SC_TARGET_REFRESH_TOKEN" ]; then
+            echo "Error: SC_TARGET_ACCESS_TOKEN and SC_TARGET_REFRESH_TOKEN must be set as GitHub Secrets." >&2
+            exit 1
           fi
+          node dist/cli.js seed target
         env:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
           DB_PATH: ./data/migrate.sqlite
-          SC_TARGET_USERNAME: ${{ secrets.SC_TARGET_USERNAME }}
-          SC_TARGET_PASSWORD: ${{ secrets.SC_TARGET_PASSWORD }}
           SC_TARGET_ACCESS_TOKEN: ${{ secrets.SC_TARGET_ACCESS_TOKEN }}
           SC_TARGET_REFRESH_TOKEN: ${{ secrets.SC_TARGET_REFRESH_TOKEN }}
 
@@ -81,22 +97,23 @@ jobs:
           SOUNDCLOUD_CLIENT_ID: ${{ secrets.SOUNDCLOUD_CLIENT_ID }}
           SOUNDCLOUD_CLIENT_SECRET: ${{ secrets.SOUNDCLOUD_CLIENT_SECRET }}
           DB_PATH: ./data/migrate.sqlite
-          JOB: ${{ inputs.job }}
-          LIMIT: ${{ inputs.limit }}
-          SLEEP: ${{ inputs.sleep }}
+          JOB: ${{ github.event_name == 'schedule' && 'all' || inputs.job || 'all' }}
+          LIMIT: ${{ inputs.limit || '200' }}
+          SLEEP: ${{ inputs.sleep || '900' }}
 
-      - name: Clear account tokens from database
+      - name: Upload migration database artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migrate-sqlite
+          path: data/migrate.sqlite
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Clear account tokens and remove database
         if: always()
         run: |
           if [ -f data/migrate.sqlite ]; then
             sqlite3 data/migrate.sqlite "DELETE FROM accounts;"
+            rm -f data/migrate.sqlite
           fi
-
-      - name: Commit migration database
-        if: always()
-        run: |
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          git add data/migrate.sqlite
-          git diff --cached --quiet || git commit -m "chore: update migration database [skip ci]"
-          git push

@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { createApiClient } from "../sc/api.js";
+import { createApiClient, ApiError } from "../sc/api.js";
 import { getProgress, isDone, markDone, upsertProgress } from "../db/db.js";
 import { sleep } from "../sc/rateLimit.js";
 import { logger } from "../logger.js";
@@ -14,7 +14,12 @@ type RepostedTrack = {
 };
 
 type RepostsResponse = {
-  collection: RepostedTrack[];
+  collection: {
+    type: string;
+    track?: {
+      id: number;
+    };
+  }[];
   next_href?: string | null;
 };
 
@@ -46,7 +51,7 @@ export const runRepostsMigration = async (
           const parsed = parseNextHref(cursor);
           return sourceClient.get<RepostsResponse>(parsed.path, parsed.query);
         })()
-      : await sourceClient.get<RepostsResponse>("/me/repost/tracks", {
+      : await sourceClient.get<RepostsResponse>("/me/activities", {
           limit: options.limit,
           linked_partitioning: 1
         });
@@ -54,20 +59,27 @@ export const runRepostsMigration = async (
     cursor = response.next_href ?? null;
     upsertProgress(db, jobName, cursor);
 
-    for (const track of response.collection) {
-      const trackId = String(track.id);
+    for (const item of response.collection) {
+      if (item.type !== "track-repost" || !item.track) {
+        continue;
+      }
+      const trackId = String(item.track.id);
       if (isDone(db, jobName, trackId)) {
         continue;
       }
 
       try {
-        await targetClient.post(`/me/reposts/tracks/${trackId}`);
+        await targetClient.post(`/reposts/tracks/${trackId}`);
         markDone(db, jobName, trackId);
         logger.info({ trackId }, "Reposted track on target account");
         if (options.sleepMs > 0) {
           await sleep(options.sleepMs);
         }
       } catch (err) {
+        if (err instanceof ApiError && err.status === 429) {
+          logger.error({ err, trackId }, "Persistent rate limit hit. Stopping migration to avoid further blocks.");
+          throw err;
+        }
         logger.error({ err, trackId }, "Failed to repost track on target account");
       }
     }

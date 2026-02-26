@@ -2,12 +2,13 @@
 import "dotenv/config";
 import { Command } from "commander";
 import { config } from "./config.js";
-import { initializeDb, upsertAccount } from "./db/db.js";
+import { initializeDb, upsertAccount, getAccount } from "./db/db.js";
 import { connectAccount, headlessConnectAccount } from "./sc/oauth.js";
 import { runFollowingsMigration } from "./jobs/followings.js";
 import { runLikesMigration } from "./jobs/likes.js";
 import { runRepostsMigration } from "./jobs/reposts.js";
 import { logger } from "./logger.js";
+import { writeFileSync } from "node:fs";
 
 const program = new Command();
 
@@ -119,6 +120,35 @@ program
     });
     logger.info({ name: account }, "Seeded OAuth tokens for account");
     db.close();
+  });
+
+program
+  .command("tokens")
+  .description("Export stored OAuth tokens to a .env file for GitHub Secrets")
+  .action(() => {
+    const db = initializeDb(config.DB_PATH);
+    const source = getAccount(db, "source");
+    const target = getAccount(db, "target");
+    db.close();
+
+    let content = "";
+    if (source) {
+      content += `SC_SOURCE_ACCESS_TOKEN=${source.access_token}\n`;
+      content += `SC_SOURCE_REFRESH_TOKEN=${source.refresh_token}\n`;
+    }
+    if (target) {
+      content += `SC_TARGET_ACCESS_TOKEN=${target.access_token}\n`;
+      content += `SC_TARGET_REFRESH_TOKEN=${target.refresh_token}\n`;
+    }
+
+    if (!content) {
+      logger.warn("No tokens found in database. Run 'connect' first.");
+      return;
+    }
+
+    const filename = "soundcloud-tokens.env";
+    writeFileSync(filename, content);
+    logger.info({ filename }, "Tokens exported to file. You can now copy these to GitHub Secrets.");
   });
 
 program.parseAsync().catch((error) => {

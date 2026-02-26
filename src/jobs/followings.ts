@@ -1,5 +1,5 @@
 import type Database from "better-sqlite3";
-import { createApiClient } from "../sc/api.js";
+import { createApiClient, ApiError } from "../sc/api.js";
 import { getProgress, isDone, markDone, upsertProgress } from "../db/db.js";
 import { sleep } from "../sc/rateLimit.js";
 import { logger } from "../logger.js";
@@ -68,6 +68,10 @@ export const runFollowingsMigration = async (
           await sleep(options.sleepMs);
         }
       } catch (err) {
+        if (err instanceof ApiError && err.status === 429) {
+          logger.error({ err, userId }, "Persistent rate limit hit. Stopping migration to avoid further blocks.");
+          throw err;
+        }
         logger.error({ err, userId }, "Failed to follow user on target account");
       }
     }
