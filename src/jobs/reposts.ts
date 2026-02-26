@@ -19,6 +19,9 @@ type RepostsResponse = {
     track?: {
       id: number;
     };
+    playlist?: {
+      id: number;
+    };
   }[];
   next_href?: string | null;
 };
@@ -60,27 +63,31 @@ export const runRepostsMigration = async (
     upsertProgress(db, jobName, cursor);
 
     for (const item of response.collection) {
-      if (item.type !== "track-repost" || !item.track) {
+      if ((item.type !== "track-repost" && item.type !== "playlist-repost") || (!item.track && !item.playlist)) {
         continue;
       }
-      const trackId = String(item.track.id);
-      if (isDone(db, jobName, trackId)) {
+      const type = item.type === "track-repost" ? "tracks" : "playlists";
+      const targetItem = item.track || item.playlist;
+      if (!targetItem) continue;
+      
+      const itemId = String(targetItem.id);
+      if (isDone(db, jobName, itemId)) {
         continue;
       }
 
       try {
-        await targetClient.post(`/reposts/tracks/${trackId}`);
-        markDone(db, jobName, trackId);
-        logger.info({ trackId }, "Reposted track on target account");
+        await targetClient.post(`/reposts/${type}/${itemId}`);
+        markDone(db, jobName, itemId);
+        logger.info({ itemId, type }, "Reposted item on target account");
         if (options.sleepMs > 0) {
           await sleep(options.sleepMs);
         }
       } catch (err) {
         if (err instanceof ApiError && err.status === 429) {
-          logger.error({ err, trackId }, "Persistent rate limit hit. Stopping migration to avoid further blocks.");
+          logger.error({ err, itemId }, "Persistent rate limit hit. Stopping migration to avoid further blocks.");
           throw err;
         }
-        logger.error({ err, trackId }, "Failed to repost track on target account");
+        logger.error({ err, itemId, type }, "Failed to repost item on target account");
       }
     }
 
