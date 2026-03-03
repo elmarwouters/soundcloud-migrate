@@ -40,7 +40,7 @@ Generate access and refresh tokens locally using the CLI OAuth connect command, 
 
 Go to **Actions → SoundCloud Migration → Run workflow** and choose:
 
-- **job**: migration to run (`followings`, `likes`, `reposts`, or `all` — default: `followings`)
+- **job**: migration to run (`followings`, `likes`, `reposts`, `delete-reposts`, or `all` — default: `followings`)
 - **limit**: API page size (default: `200`)
 - **sleep**: ms between actions (default: `900`)
 
@@ -112,6 +112,7 @@ This creates a `soundcloud-tokens.env` file containing the tokens for both accou
 node dist/cli.js run followings --limit 200 --sleep 900
 node dist/cli.js run likes --limit 200 --sleep 900
 node dist/cli.js run reposts --limit 200 --sleep 900
+node dist/cli.js run delete-reposts --limit 200 --sleep 900
 node dist/cli.js run all --limit 200 --sleep 900
 ```
 
@@ -125,6 +126,7 @@ Available jobs:
 | `followings` | Follow all users that the source account follows |
 | `likes` | Like all tracks that the source account has liked |
 | `reposts` | Repost all tracks that the source account has reposted |
+| `delete-reposts` | Delete all reposts from the source account |
 | `all` | Run all of the above in sequence |
 
 Progress is persisted in SQLite so you can safely rerun the command to resume.

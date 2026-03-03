@@ -7,6 +7,7 @@ import { connectAccount, headlessConnectAccount } from "./sc/oauth.js";
 import { runFollowingsMigration } from "./jobs/followings.js";
 import { runLikesMigration } from "./jobs/likes.js";
 import { runRepostsMigration } from "./jobs/reposts.js";
+import { runDeleteRepostsMigration } from "./jobs/delete-reposts.js";
 import { logger } from "./logger.js";
 import { writeFileSync } from "node:fs";
 
@@ -74,6 +75,12 @@ program
 
     if (job === "reposts") {
       await runRepostsMigration(db, { limit, sleepMs });
+      db.close();
+      return;
+    }
+
+    if (job === "delete-reposts") {
+      await runDeleteRepostsMigration(db, { limit, sleepMs });
       db.close();
       return;
     }
