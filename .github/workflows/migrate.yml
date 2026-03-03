@@ -11,8 +11,6 @@ on:
         options:
           - followings
           - likes
-          - reposts
-          - delete-reposts
           - all
       limit:
         description: 'Page size for SoundCloud API (max 200)'
