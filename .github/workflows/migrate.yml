@@ -20,8 +20,6 @@ on:
         description: 'Sleep between follow actions (ms)'
         required: false
         default: '900'
-  schedule:
-    - cron: '0 0 */2 * *'
 
 concurrency:
   group: soundcloud-migration
